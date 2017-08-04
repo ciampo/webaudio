@@ -1,0 +1,54 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+#canvas {
+  flex: 1;
+  background: #112244;
+}
+
+#controls {
+  flex: 0 0 100px;
+
+  padding: 40px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+
+  background: #eee;
+}
+
+label {
+  display: flex;
+  align-items: center;
+}
+
+input {
+  position: relative;
+  margin-left: 10px;
+}
+
+input[type="range"]::before {
+  content: attr(min);
+  position: absolute;
+  top: 100%;
+  left: 0;
+}
+
+input[type="range"]::after {
+  content: attr(max);
+  position: absolute;
+  top: 100%;
+  right: 0;
+}
