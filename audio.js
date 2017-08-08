@@ -3,7 +3,7 @@ const SAMPLE_RATE = 44100;
 
 // BPM detection
 const LP_FREQ = 150;
-const HP_FREQ = 80;
+const HP_FREQ = 100;
 const FILTER_Q = 3;
 const MIN_BPM = 80;
 const MAX_BPM = 180;
@@ -47,9 +47,31 @@ function playSong(response) {
     analyserNode.fftSize = 128;
 
     // Chain 1 - just out
-    audioSource.connect(analyserNode);
-    analyserNode.connect(gainNode);
+    // audioSource.connect(analyserNode);
+    // analyserNode.connect(gainNode);
+    // gainNode.connect(audioCtx.destination);
+    audioSource.connect(gainNode);
     gainNode.connect(audioCtx.destination);
+
+    // Chain 2 - kickdrum peaks
+    const lowpass = audioCtx.createBiquadFilter();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = LP_FREQ;
+    lowpass.Q.value = FILTER_Q;
+    wireCtrl('lowpass', lowpass.frequency);
+    const highpass = audioCtx.createBiquadFilter();
+    highpass.type = "highpass";
+    highpass.frequency.value = HP_FREQ;
+    highpass.Q.value = FILTER_Q;
+    wireCtrl('highpass', highpass.frequency);
+
+    const kickPeaksAnalyser = audioCtx.createAnalyser();
+    kickPeaksAnalyser.fftSize = 128;
+
+    // Connect nodes.
+    audioSource.connect(lowpass);
+    lowpass.connect(highpass);
+    highpass.connect(analyserNode);
 
     audioSource.start(0);
   });
@@ -65,10 +87,30 @@ const canvasBCR = canvas.getBoundingClientRect();
 canvas.width = canvasBCR.width;
 canvas.height = canvasBCR.height;
 
-const renderFrame = (ms) => {
+let kickPeaksBuffer = [];
+let kickPeaksBufferMaxLength = 50;
+
+let isPeaking = false;
+
+function addkickPeaksValue(val) {
+  const samples = kickPeaksBuffer.length;
+  kickPeaksBuffer.push(val);
+
+  if (samples === kickPeaksBufferMaxLength) {
+    kickPeaksBuffer.splice(0, 1);
+  }
+
+  return kickPeaksBuffer.reduce((prev, current) => Math.max(prev, current), 0);
+}
+
+function renderFrame(ms) {
   requestAnimationFrame(renderFrame);
 
   if (typeof analyserNode === 'undefined') return;
+
+  const maxUint8Value = 256;
+
+  let currentMaxValue = 0;
 
   const audioData = new Uint8Array(analyserNode.frequencyBinCount);
   analyserNode.getByteFrequencyData(audioData);
@@ -89,18 +131,27 @@ const renderFrame = (ms) => {
   canvasCtx.fillStyle = '#00d6b3';
   for (let i = 0; i < audioData.length; i++) {
     const barWidth = graphWidth / audioData.length;
-    // 256 is themax value for a Uint8Array item
-    const barHeight = audioData[i] * graphHeight / 256;
+    // 256 is the max value for a Uint8Array item
+    const barHeight = audioData[i] * graphHeight / maxUint8Value;
     canvasCtx.fillRect(Math.round(i * barWidth),
         Math.round(graphHeight - barHeight),
         Math.round(barWidth) - 1, Math.round(barHeight));
+
+    currentMaxValue = Math.max(currentMaxValue, audioData[i]);
   }
 
-  // Show filter frequency
-  if (typeof lowPass !== 'undefined') {
-    canvasCtx.fillStyle = 'rgba(0, 0, 0, .4)';
-    const filterX = Math.round(lowPass.frequency.value * graphWidth / nyquist);
-    canvasCtx.fillRect(filterX, 0, Math.round(graphWidth - filterX), graphHeight);
+  currentMaxValue = currentMaxValue / maxUint8Value / audioData.length;
+
+  const threshold = addkickPeaksValue(currentMaxValue) * 0.8;
+  if (!isPeaking && currentMaxValue > threshold) {
+    isPeaking = true;
+  } else if (isPeaking && currentMaxValue <= threshold) {
+    isPeaking = false;
+  }
+
+  if (isPeaking) {
+    canvasCtx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+    canvasCtx.fillRect(0, 0, graphWidth, graphHeight);
   }
 };
 
