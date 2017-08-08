@@ -113,8 +113,7 @@ renderFrame(0);
 
 function getPeaks(data) {
   // Split audio into widows of 22050 samples each, i.e. 44100 / 22050 = 0.5s each.
-  // This means we can't detect BPM faster than 120bpm (60s / 0.5s = 120bpm)
-  // For each window, we save the loudest sample/
+  // For each window, we save the loudest sample and its position in samples
   const windowSize = SAMPLE_RATE / 2;
   const howManyWindows = data[0].length / windowSize;
 
